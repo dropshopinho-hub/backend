@@ -1,11 +1,18 @@
-from supabase import create_client, Client
 import uuid
 from datetime import datetime
+from supabase import create_client, Client
 
+# -------------------------
+# 🔧 Conexão com o Supabase
+# -------------------------
 url = "https://yglyswztimbvkipsbeux.supabase.co"
 key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlnbHlzd3p0aW1idmtpcHNiZXV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTcwNTksImV4cCI6MjA3MTk3MzA1OX0.0sM6gpMicEc-sM7vjEWlnEEyGIvSbju9nln94dcPAm0"
+
 supabase: Client = create_client(url, key)
 
+# -------------------------
+# 📦 Modelo: Ferramenta
+# -------------------------
 class Tool:
     def __init__(self, name, total_quantity=0, id=None):
         self.id = id or str(uuid.uuid4())
@@ -25,6 +32,9 @@ class Tool:
     def save(self):
         supabase.table("tool").insert(self.to_dict()).execute()
 
+# -------------------------
+# 🛠️ Modelo: Instância da Ferramenta
+# -------------------------
 class ToolInstance:
     def __init__(self, tool_id, status='Disponível', current_user_id=None, last_user_id=None,
                  assigned_at=None, transferred_to_user_id=None, transfer_initiated_at=None, quantity=1, id=None):
@@ -57,6 +67,9 @@ class ToolInstance:
     def save(self):
         supabase.table("tool_instance").insert(self.to_dict()).execute()
 
+# -------------------------
+# 📜 Modelo: Log de Ferramentas
+# -------------------------
 class ToolLog:
     def __init__(self, tool_instance_id, action, from_user_id=None, to_user_id=None,
                  quantity=1, timestamp=None, id=None):
