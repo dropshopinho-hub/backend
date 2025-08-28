@@ -1,3 +1,4 @@
-from flask_sqlalchemy import SQLAlchemy
-
-db = SQLAlchemy()
+"""
+Inicialização do pacote src
+(Removido SQLAlchemy, agora usamos Supabase direto)
+"""
