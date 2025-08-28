@@ -1,30 +1,38 @@
-
 import os
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from src.models.user import db, User
-from flask import Flask
+from supabase import create_client, Client
+import uuid
+import hashlib
 
-# Ajuste o nome do arquivo do banco de dados conforme necessário
-DB_PATH = os.path.join(os.path.dirname(__file__), 'database', 'app.db')
+# Dados do Supabase
+url = "https://yglyswztimbvkipsbeux.supabase.co"
+key = os.getenv("SUPABASE_SERVICE_KEY")  # ⚠️ use a service role key em variável de ambiente
+supabase: Client = create_client(url, key)
 
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Defina o usuário admin
+ADMIN_USERNAME = "RafaelPinho"
+ADMIN_PASSWORD = "@21314100"
 
-db.init_app(app)
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
 
-# Defina aqui o usuário e senha do admin
-ADMIN_USERNAME = 'RafaelPinho'
-ADMIN_PASSWORD = '@21314100'
+def ensure_admin_user():
+    # Verifica se já existe
+    response = supabase.table("users").select("*").eq("username", ADMIN_USERNAME).execute()
 
-with app.app_context():
-    db.create_all()
-    if not User.query.filter_by(username=ADMIN_USERNAME).first():
-        admin = User(username=ADMIN_USERNAME, role='admin')
-        admin.set_password(ADMIN_PASSWORD)
-        db.session.add(admin)
-        db.session.commit()
-        print(f'Usuário admin criado: {ADMIN_USERNAME} / {ADMIN_PASSWORD}')
-    else:
-        print('Usuário admin já existe.')
+    if response.data and len(response.data) > 0:
+        print("Usuário admin já existe.")
+        return
+
+    # Cria novo admin
+    admin_user = {
+        "id": str(uuid.uuid4()),
+        "username": ADMIN_USERNAME,
+        "password_hash": hash_password(ADMIN_PASSWORD),
+        "role": "admin"
+    }
+
+    supabase.table("users").insert(admin_user).execute()
+    print(f"Usuário admin criado: {ADMIN_USERNAME} / {ADMIN_PASSWORD}")
+
+if __name__ == "__main__":
+    ensure_admin_user()

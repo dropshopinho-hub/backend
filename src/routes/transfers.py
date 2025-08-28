@@ -6,6 +6,9 @@ from datetime import datetime
 
 transfers_bp = Blueprint('transfers', __name__)
 
+# ------------------------------
+# Iniciar transferência
+# ------------------------------
 @transfers_bp.route('', methods=['POST'])
 @jwt_required()
 def create_transfer():
@@ -18,7 +21,10 @@ def create_transfer():
     tool_instance_id = data['tool_instance_id']
     to_user_id = data['to_user_id']
     
-    # Find the tool instance
+    if to_user_id == current_user_id:
+        return jsonify({'error': 'Cannot transfer tool to yourself'}), 400
+    
+    # Buscar a instância da ferramenta
     instance = ToolInstance.query.get(tool_instance_id)
     
     if not instance:
@@ -30,17 +36,17 @@ def create_transfer():
     if instance.status != 'Emprestado':
         return jsonify({'error': 'Tool is not currently borrowed'}), 400
     
-    # Check if target user exists
+    # Verificar se o usuário destino existe
     target_user = User.query.get(to_user_id)
     if not target_user:
         return jsonify({'error': 'Target user not found'}), 404
     
-    # Initiate transfer
+    # Iniciar a transferência
     instance.status = 'Aguardando Confirmação de Transferência'
     instance.transferred_to_user_id = to_user_id
     instance.transfer_initiated_at = datetime.utcnow()
     
-    # Log the transfer initiation
+    # Registrar log
     log = ToolLog(
         tool_instance_id=instance.id,
         action='Transferência',
@@ -49,17 +55,19 @@ def create_transfer():
         quantity=1
     )
     db.session.add(log)
-    
     db.session.commit()
     
     return jsonify({'message': 'Transfer initiated successfully'}), 201
 
+
+# ------------------------------
+# Confirmar transferência
+# ------------------------------
 @transfers_bp.route('/<transfer_id>/confirm', methods=['PUT'])
 @jwt_required()
 def confirm_transfer(transfer_id):
     current_user_id = get_jwt_identity()
     
-    # Find the tool instance
     instance = ToolInstance.query.get(transfer_id)
     
     if not instance:
@@ -71,14 +79,13 @@ def confirm_transfer(transfer_id):
     if instance.status != 'Aguardando Confirmação de Transferência':
         return jsonify({'error': 'Transfer not pending confirmation'}), 400
     
-    # Confirm transfer
+    # Confirmar
     instance.current_user_id = current_user_id
     instance.status = 'Emprestado'
     instance.transferred_to_user_id = None
     instance.transfer_initiated_at = None
     instance.assigned_at = datetime.utcnow()
     
-    # Log the transfer confirmation
     log = ToolLog(
         tool_instance_id=instance.id,
         action='Confirmação de Transferência',
@@ -86,17 +93,19 @@ def confirm_transfer(transfer_id):
         quantity=1
     )
     db.session.add(log)
-    
     db.session.commit()
     
     return jsonify({'message': 'Transfer confirmed successfully'}), 200
 
+
+# ------------------------------
+# Rejeitar transferência
+# ------------------------------
 @transfers_bp.route('/<transfer_id>/reject', methods=['PUT'])
 @jwt_required()
 def reject_transfer(transfer_id):
     current_user_id = get_jwt_identity()
     
-    # Find the tool instance
     instance = ToolInstance.query.get(transfer_id)
     
     if not instance:
@@ -108,23 +117,22 @@ def reject_transfer(transfer_id):
     if instance.status != 'Aguardando Confirmação de Transferência':
         return jsonify({'error': 'Transfer not pending confirmation'}), 400
     
-    # Reject transfer - return to original user
-    original_user_id = None
-    # Find the original user from logs
+    # Pegar usuário original do log
     transfer_log = ToolLog.query.filter_by(
         tool_instance_id=instance.id,
         action='Transferência'
     ).order_by(ToolLog.timestamp.desc()).first()
     
-    if transfer_log:
-        original_user_id = transfer_log.from_user_id
+    original_user_id = transfer_log.from_user_id if transfer_log else None
+    if not original_user_id:
+        return jsonify({'error': 'Original user not found for this transfer'}), 400
     
+    # Rejeitar
     instance.current_user_id = original_user_id
     instance.status = 'Emprestado'
     instance.transferred_to_user_id = None
     instance.transfer_initiated_at = None
     
-    # Log the transfer rejection
     log = ToolLog(
         tool_instance_id=instance.id,
         action='Recusa de Transferência',
@@ -133,22 +141,24 @@ def reject_transfer(transfer_id):
         quantity=1
     )
     db.session.add(log)
-    
     db.session.commit()
     
     return jsonify({'message': 'Transfer rejected successfully'}), 200
 
+
+# ------------------------------
+# Listar transferências pendentes
+# ------------------------------
 @transfers_bp.route('/pending/<user_id>', methods=['GET'])
 @jwt_required()
 def get_pending_transfers(user_id):
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
     
-    # Users can only see their own pending transfers, admins can see any user's
-    if current_user.role != 'admin' and current_user_id != user_id:
+    # Somente admin pode ver de outros usuários
+    if current_user.role != 'admin' and str(current_user_id) != str(user_id):
         return jsonify({'error': 'Unauthorized'}), 403
     
-    # Get pending transfers for this user
     pending_transfers = ToolInstance.query.filter_by(
         transferred_to_user_id=user_id,
         status='Aguardando Confirmação de Transferência'
@@ -157,4 +167,3 @@ def get_pending_transfers(user_id):
     return jsonify({
         'pending_transfers': [transfer.to_dict() for transfer in pending_transfers]
     }), 200
-

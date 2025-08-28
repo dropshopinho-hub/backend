@@ -25,6 +25,7 @@ CORS(app)
 # Initialize JWT
 jwt = JWTManager(app)
 
+# Register blueprints
 app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(tools_bp, url_prefix='/api/tools')
@@ -33,19 +34,24 @@ app.register_blueprint(transfers_bp, url_prefix='/api/transfers')
 app.register_blueprint(returns_bp, url_prefix='/api/returns')
 app.register_blueprint(reports_bp, url_prefix='/api/reports')
 
-# uncomment if you need to use database
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'database', 'app.db')}"
+# -------------------------
+# 🔧 Ajuste para Supabase DB
+# -------------------------
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
+    "DATABASE_URL",
+    # 👉 Troque SENHA pelo password real do seu Supabase
+    "postgresql://postgres:SENHA@db.yglyswztimbvkipsbeux.supabase.co:5432/postgres"
+)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 db.init_app(app)
-with app.app_context():
-    db.create_all()
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
     static_folder_path = app.static_folder
     if static_folder_path is None:
-            return "Static folder not configured", 404
+        return "Static folder not configured", 404
 
     if path != "" and os.path.exists(os.path.join(static_folder_path, path)):
         return send_from_directory(static_folder_path, path)

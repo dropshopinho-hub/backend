@@ -1,27 +1,34 @@
-from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
+from supabase import create_client, Client
+from werkzeug.security import generate_password_hash
 
-db = SQLAlchemy()
+# Conexão com Supabase
+url = "https://yglyswztimbvkipsbeux.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlnbHlzd3p0aW1idmtpcHNiZXV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTcwNTksImV4cCI6MjA3MTk3MzA1OX0.0sM6gpMicEc-sM7vjEWlnEEyGIvSbju9nln94dcPAm0"
+supabase: Client = create_client(url, key)
 
-class User(db.Model):
-    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    username = db.Column(db.String(50), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(10), nullable=False, default='user')  # 'admin' or 'user'
+# Defina o usuário admin
+ADMIN_USERNAME = "RafaelPinho"
+ADMIN_PASSWORD = "@21314100"
 
-    def __repr__(self):
-        return f'<User {self.username}>'
+def ensure_admin():
+    # Verifica se o usuário já existe
+    response = supabase.table("users").select("*").eq("username", ADMIN_USERNAME).execute()
 
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+    if response.data and len(response.data) > 0:
+        print("Usuário admin já existe.")
+        return
 
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+    # Se não existir, cria
+    admin_user = {
+        "id": str(uuid.uuid4()),
+        "username": ADMIN_USERNAME,
+        "password_hash": generate_password_hash(ADMIN_PASSWORD),
+        "role": "admin"
+    }
+    supabase.table("users").insert(admin_user).execute()
+    print(f"Usuário admin criado: {ADMIN_USERNAME} / {ADMIN_PASSWORD}")
 
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'username': self.username,
-            'role': self.role
-        }
+if __name__ == "__main__":
+    ensure_admin()
+

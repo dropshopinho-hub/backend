@@ -1,0 +1,2 @@
+id,username,password_hash,role
+49fab09c-b7cd-416a-beca-49785269dcab,RafaelPinho,scrypt:32768:8:1$KROV0NnCEFOFK4vP$07374e22d4be840c844839527ce59920f2aabd3894573f98369d243e88ee5f1317bfe76592c9176723e175f782420ed5a45e2346bd1e95daf7442ed5aacbc6e2,admin
