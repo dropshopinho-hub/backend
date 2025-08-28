@@ -1,3 +1,4 @@
+# src/main.py
 import os
 import sys
 # DON'T CHANGE THIS !!!
@@ -6,7 +7,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from flask import Flask, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
-from src.models import db  # ✅ db centralizado no __init__.py
+
+# ✅ Agora os models não têm mais db
 from src.routes.user import user_bp
 from src.routes.auth import auth_bp
 from src.routes.tools import tools_bp
@@ -15,6 +17,9 @@ from src.routes.transfers import transfers_bp
 from src.routes.returns import returns_bp
 from src.routes.reports import reports_bp
 
+# -------------------------
+# 🔧 Configuração da aplicação Flask
+# -------------------------
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 app.config['JWT_SECRET_KEY'] = 'jwt-secret-string'
@@ -25,7 +30,9 @@ CORS(app)
 # Initialize JWT
 jwt = JWTManager(app)
 
-# Register blueprints
+# -------------------------
+# 🔧 Registro das rotas
+# -------------------------
 app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(tools_bp, url_prefix='/api/tools')
@@ -35,17 +42,8 @@ app.register_blueprint(returns_bp, url_prefix='/api/returns')
 app.register_blueprint(reports_bp, url_prefix='/api/reports')
 
 # -------------------------
-# 🔧 Ajuste para Supabase DB
+# 🔧 Rotas para servir frontend (Vercel ou build local)
 # -------------------------
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
-    "DATABASE_URL",
-    # 👉 Troque SENHA pelo password real do seu Supabase
-    "postgresql://postgres:SENHA@db.yglyswztimbvkipsbeux.supabase.co:5432/postgres"
-)
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db.init_app(app)
-
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
@@ -64,4 +62,5 @@ def serve(path):
 
 
 if __name__ == '__main__':
+    # ✅ Flask roda no Render sem problema
     app.run(host='0.0.0.0', port=5000, debug=True)
