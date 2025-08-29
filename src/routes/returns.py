@@ -67,4 +67,4 @@ def get_tools_pdf_report():
         return admin_check
 
     # PDF generation not available in this environment
-    return jsonify({'message': 'PDF generation not available
+    return jsonify({'message': 'PDF generation not available in this environment'}), 200
