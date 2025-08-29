@@ -4,7 +4,7 @@ from src.models.user import supabase
 from src.models.tool import ToolLog
 from datetime import datetime
 
-returns_bp = Blueprint('returns', __name__)
+tools_bp = Blueprint('tools', __name__)
 
 def require_admin():
     current_user_id = get_jwt_identity()
@@ -14,7 +14,7 @@ def require_admin():
         return jsonify({'error': 'Admin access required'}), 403
     return None
 
-@returns_bp.route('', methods=['POST'])
+@tools_bp.route('', methods=['POST'])
 @jwt_required()
 def create_return():
     current_user_id = get_jwt_identity()
@@ -52,7 +52,7 @@ def create_return():
     
     return jsonify({'message': 'Return initiated successfully'}), 201
 
-@returns_bp.route('/<return_id>/accept', methods=['PUT'])
+@tools_bp.route('/<return_id>/accept', methods=['PUT'])
 @jwt_required()
 def accept_return(return_id):
     admin_check = require_admin()
@@ -86,7 +86,7 @@ def accept_return(return_id):
     
     return jsonify({'message': 'Return accepted successfully'}), 200
 
-@returns_bp.route('/<return_id>/reject', methods=['PUT'])
+@tools_bp.route('/<return_id>/reject', methods=['PUT'])
 @jwt_required()
 def reject_return(return_id):
     admin_check = require_admin()
@@ -117,7 +117,7 @@ def reject_return(return_id):
     
     return jsonify({'message': 'Return rejected successfully'}), 200
 
-@returns_bp.route('/pending', methods=['GET'])
+@tools_bp.route('/pending', methods=['GET'])
 @jwt_required()
 def get_pending_returns():
     admin_check = require_admin()
