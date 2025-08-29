@@ -1,4 +1,3 @@
-# src/main.py
 import os
 import sys
 # DON'T CHANGE THIS !!!
@@ -11,7 +10,7 @@ from flask_jwt_extended import JWTManager
 # ✅ Agora os models não têm mais db
 from src.routes.user import user_bp
 from src.routes.auth import auth_bp
-from src.routes.tools import tools_bp
+from src.routes.tools import tools_bp  # Certifique-se que tools_bp está definido em tools.py
 from src.routes.assignments import assignments_bp
 from src.routes.transfers import transfers_bp
 from src.routes.returns import returns_bp
@@ -59,7 +58,6 @@ def serve(path):
             return send_from_directory(static_folder_path, 'index.html')
         else:
             return "index.html not found", 404
-
 
 if __name__ == '__main__':
     # ✅ Flask roda no Render sem problema
