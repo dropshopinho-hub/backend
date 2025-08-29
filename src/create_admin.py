@@ -2,10 +2,16 @@ import os
 from supabase import create_client, Client
 import uuid
 import hashlib
+import sys
 
 # Dados do Supabase
 url = "https://yglyswztimbvkipsbeux.supabase.co"
 key = os.getenv("SUPABASE_SERVICE_KEY")  # ⚠️ use a service role key em variável de ambiente
+
+if not key:
+    print("Erro: SUPABASE_SERVICE_KEY não definida no ambiente.")
+    sys.exit(1)
+
 supabase: Client = create_client(url, key)
 
 # Defina o usuário admin

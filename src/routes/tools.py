@@ -1,179 +1,133 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.models.user import User, db
-from src.models.tool import Tool, ToolInstance, ToolLog
-from sqlalchemy import func
+from src.models.user import supabase
+from src.models.tool import ToolLog
+from datetime import datetime
 
-tools_bp = Blueprint('tools', __name__)
+returns_bp = Blueprint('returns', __name__)
 
 def require_admin():
     current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-    if not user or user.role != 'admin':
+    response = supabase.table("users").select("*").eq("id", current_user_id).execute()
+    user = response.data[0] if response.data else None
+    if not user or user.get("role") != "admin":
         return jsonify({'error': 'Admin access required'}), 403
     return None
 
-@tools_bp.route('', methods=['POST'])
+@returns_bp.route('', methods=['POST'])
 @jwt_required()
-def create_tool():
-    admin_check = require_admin()
-    if admin_check:
-        return admin_check
-    
+def create_return():
+    current_user_id = get_jwt_identity()
     data = request.get_json()
     
-    if not data or not data.get('name') or not data.get('quantity'):
-        return jsonify({'error': 'Name and quantity are required'}), 400
+    if not data or not data.get('tool_instance_id'):
+        return jsonify({'error': 'Tool instance ID is required'}), 400
     
-    name = data['name']
-    quantity = int(data['quantity'])
+    tool_instance_id = data['tool_instance_id']
     
-    # Create new tool
-    tool = Tool(name=name, total_quantity=quantity)
-    db.session.add(tool)
-    db.session.flush()  # To get the tool ID
+    # Find the tool instance
+    instance_resp = supabase.table("tool_instance").select("*").eq("id", tool_instance_id).execute()
+    instance = instance_resp.data[0] if instance_resp.data else None
     
-    # Create tool instances
-    for _ in range(quantity):
-        instance = ToolInstance(tool_id=tool.id, status='Disponível')
-        db.session.add(instance)
+    if not instance:
+        return jsonify({'error': 'Tool instance not found'}), 404
     
-    db.session.commit()
+    if instance.get('current_user_id') != current_user_id:
+        return jsonify({'error': 'Unauthorized'}), 403
     
-    return jsonify({'message': 'Tool created successfully', 'tool': tool.to_dict()}), 201
+    if instance.get('status') != 'Emprestado':
+        return jsonify({'error': 'Tool is not currently borrowed'}), 400
+    
+    # Initiate return
+    supabase.table("tool_instance").update({"status": "Em Devolução"}).eq("id", tool_instance_id).execute()
+    
+    # Log the return initiation
+    log = ToolLog(
+        tool_instance_id=tool_instance_id,
+        action='Devolução',
+        from_user_id=current_user_id,
+        quantity=1
+    )
+    supabase.table("tool_log").insert(log.to_dict()).execute()
+    
+    return jsonify({'message': 'Return initiated successfully'}), 201
 
-@tools_bp.route('', methods=['GET'])
+@returns_bp.route('/<return_id>/accept', methods=['PUT'])
 @jwt_required()
-def get_tools():
-    # Get all tools with aggregated information
-    tools_data = []
-    
-    # Query to get tool information with status counts
-    tools = Tool.query.all()
-    
-    for tool in tools:
-        # Get status counts for this tool
-        status_counts = db.session.query(
-            ToolInstance.status,
-            ToolInstance.current_user_id,
-            User.username,
-            func.sum(ToolInstance.quantity).label('total_quantity'),
-            func.min(ToolInstance.assigned_at).label('assigned_at')
-        ).outerjoin(User, ToolInstance.current_user_id == User.id)\
-         .filter(ToolInstance.tool_id == tool.id)\
-         .group_by(ToolInstance.status, ToolInstance.current_user_id, User.username)\
-         .all()
-        
-        # Group by status and user
-        grouped_data = {}
-        for status, user_id, username, quantity, assigned_at in status_counts:
-            key = f"{status}_{user_id or 'none'}"
-            if key not in grouped_data:
-                grouped_data[key] = {
-                    'tool_id': tool.id,
-                    'tool_name': tool.name,
-                    'status': status,
-                    'user_id': user_id,
-                    'username': username,
-                    'quantity': 0,
-                    'assigned_at': assigned_at.isoformat() if assigned_at else None
-                }
-            grouped_data[key]['quantity'] += quantity
-        
-        tools_data.extend(grouped_data.values())
-    
-    return jsonify({'tools': tools_data}), 200
-
-@tools_bp.route('/<tool_id>', methods=['GET'])
-@jwt_required()
-def get_tool(tool_id):
-    tool = Tool.query.get(tool_id)
-    
-    if not tool:
-        return jsonify({'error': 'Tool not found'}), 404
-    
-    return jsonify({'tool': tool.to_dict()}), 200
-
-@tools_bp.route('/<tool_id>', methods=['PUT'])
-@jwt_required()
-def update_tool(tool_id):
+def accept_return(return_id):
     admin_check = require_admin()
     if admin_check:
         return admin_check
     
-    tool = Tool.query.get(tool_id)
+    # Find the tool instance
+    instance_resp = supabase.table("tool_instance").select("*").eq("id", return_id).execute()
+    instance = instance_resp.data[0] if instance_resp.data else None
     
-    if not tool:
-        return jsonify({'error': 'Tool not found'}), 404
+    if not instance:
+        return jsonify({'error': 'Return not found'}), 404
     
-    data = request.get_json()
+    if instance.get('status') != 'Em Devolução':
+        return jsonify({'error': 'Return not pending acceptance'}), 400
     
-    if data.get('name'):
-        tool.name = data['name']
+    # Accept return
+    supabase.table("tool_instance").update({
+        "current_user_id": None,
+        "status": "Disponível",
+        "assigned_at": None
+    }).eq("id", return_id).execute()
+    
+    # Log the return acceptance
+    log = ToolLog(
+        tool_instance_id=return_id,
+        action='Aceite Devolução',
+        quantity=1
+    )
+    supabase.table("tool_log").insert(log.to_dict()).execute()
+    
+    return jsonify({'message': 'Return accepted successfully'}), 200
 
-    if data.get('quantity'):
-        new_quantity = int(data['quantity'])
-        current_instances = ToolInstance.query.filter_by(tool_id=tool.id).count()
-
-        if new_quantity > current_instances:
-            # Add more instances
-            for _ in range(new_quantity - current_instances):
-                instance = ToolInstance(tool_id=tool.id, status='Disponível')
-                db.session.add(instance)
-        elif new_quantity < current_instances:
-            # Remove instances (only available ones)
-            available_instances = ToolInstance.query.filter_by(
-                tool_id=tool.id,
-                status='Disponível'
-            ).limit(current_instances - new_quantity).all()
-            for instance in available_instances:
-                db.session.delete(instance)
-
-        tool.total_quantity = new_quantity
-
-
-    db.session.commit()
-
-    return jsonify({'message': 'Tool updated successfully', 'tool': tool.to_dict()}), 200
-
-@tools_bp.route('/<tool_id>', methods=['DELETE'])
+@returns_bp.route('/<return_id>/reject', methods=['PUT'])
 @jwt_required()
-def delete_tool(tool_id):
+def reject_return(return_id):
     admin_check = require_admin()
     if admin_check:
         return admin_check
     
-    tool = Tool.query.get(tool_id)
+    # Find the tool instance
+    instance_resp = supabase.table("tool_instance").select("*").eq("id", return_id).execute()
+    instance = instance_resp.data[0] if instance_resp.data else None
     
-    if not tool:
-        return jsonify({'error': 'Tool not found'}), 404
+    if not instance:
+        return jsonify({'error': 'Return not found'}), 404
     
-    # Check if any instances are not available
-    non_available_instances = ToolInstance.query.filter(
-        ToolInstance.tool_id == tool.id,
-        ToolInstance.status != 'Disponível'
-    ).count()
+    if instance.get('status') != 'Em Devolução':
+        return jsonify({'error': 'Return not pending acceptance'}), 400
     
-    if non_available_instances > 0:
-        return jsonify({'error': 'Cannot delete tool with non-available instances'}), 400
+    # Reject return - return to user
+    supabase.table("tool_instance").update({"status": "Emprestado"}).eq("id", return_id).execute()
     
-    # Delete all instances and logs
-    ToolInstance.query.filter_by(tool_id=tool.id).delete()
-    db.session.delete(tool)
-    db.session.commit()
+    # Log the return rejection
+    log = ToolLog(
+        tool_instance_id=return_id,
+        action='Recusa Devolução',
+        to_user_id=instance.get('current_user_id'),
+        quantity=1
+    )
+    supabase.table("tool_log").insert(log.to_dict()).execute()
     
-    return jsonify({'message': 'Tool deleted successfully'}), 200
+    return jsonify({'message': 'Return rejected successfully'}), 200
 
-@tools_bp.route('/recusadas', methods=['GET'])
+@returns_bp.route('/pending', methods=['GET'])
 @jwt_required()
-def get_recusadas():
-    # Lista todas as ferramentas e quantidades com status 'Recusada'
-    recusadas = ToolInstance.query.filter_by(status='Recusada').all()
-    result = []
-    for ti in recusadas:
-        result.append({
-            'tool_name': ti.tool.name if ti.tool else None,
-            'quantity': ti.quantity
-        })
-    return jsonify({'recusadas': result}), 200
-
+def get_pending_returns():
+    admin_check = require_admin()
+    if admin_check:
+        return admin_check
+    
+    # Get all pending returns
+    pending_resp = supabase.table("tool_instance").select("*").eq("status", "Em Devolução").execute()
+    pending_returns = pending_resp.data if pending_resp.data else []
+    
+    return jsonify({
+        'pending_returns': pending_returns
+    }), 200

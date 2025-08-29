@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.models.user import User, db
+from src.models.user import supabase
+from werkzeug.security import generate_password_hash
 
 user_bp = Blueprint('user', __name__)
 
@@ -11,9 +12,9 @@ user_bp = Blueprint('user', __name__)
 @jwt_required()
 def get_users():
     current_user_id = get_jwt_identity()
-    users = User.query.filter(User.id != current_user_id).all()
-    return jsonify({'users': [user.to_dict() for user in users]}), 200
-
+    resp = supabase.table("users").select("*").neq("id", current_user_id).execute()
+    users = resp.data if resp.data else []
+    return jsonify({'users': users}), 200
 
 # ------------------------------
 # Criar usuário (aberto - sem login)
@@ -29,17 +30,21 @@ def create_user():
         return jsonify({'error': 'Username and password required'}), 400
     
     # Impede usernames duplicados
-    if User.query.filter_by(username=username).first():
+    check_resp = supabase.table("users").select("*").eq("username", username).execute()
+    if check_resp.data:
         return jsonify({'error': 'Username already exists'}), 400
 
-    user = User(username=username, role=role)
-    user.set_password(password)
+    import uuid
+    user_id = str(uuid.uuid4())
+    user = {
+        "id": user_id,
+        "username": username,
+        "password_hash": generate_password_hash(password),
+        "role": role
+    }
+    supabase.table("users").insert(user).execute()
 
-    db.session.add(user)
-    db.session.commit()
-
-    return jsonify(user.to_dict()), 201
-
+    return jsonify(user), 201
 
 # ------------------------------
 # Obter perfil de usuário
@@ -48,18 +53,19 @@ def create_user():
 @jwt_required()
 def get_user(user_id):
     current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
+    resp = supabase.table("users").select("*").eq("id", current_user_id).execute()
+    current_user = resp.data[0] if resp.data else None
 
     # Restrição: usuário só vê o próprio perfil, admin vê qualquer um
-    if current_user.role != 'admin' and str(current_user_id) != str(user_id):
+    if current_user.get("role") != 'admin' and str(current_user_id) != str(user_id):
         return jsonify({'error': 'Unauthorized'}), 403
 
-    user = User.query.get(user_id)
+    user_resp = supabase.table("users").select("*").eq("id", user_id).execute()
+    user = user_resp.data[0] if user_resp.data else None
     if not user:
         return jsonify({'error': 'User not found'}), 404
     
-    return jsonify({'user': user.to_dict()}), 200
-
+    return jsonify({'user': user}), 200
 
 # ------------------------------
 # Atualizar usuário
@@ -68,33 +74,44 @@ def get_user(user_id):
 @jwt_required()
 def update_user(user_id):
     current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
+    resp = supabase.table("users").select("*").eq("id", current_user_id).execute()
+    current_user = resp.data[0] if resp.data else None
 
     # Somente o próprio ou admin podem atualizar
-    if current_user.role != 'admin' and str(current_user_id) != str(user_id):
+    if current_user.get("role") != 'admin' and str(current_user_id) != str(user_id):
         return jsonify({'error': 'Unauthorized'}), 403
 
-    user = User.query.get_or_404(user_id)
+    user_resp = supabase.table("users").select("*").eq("id", user_id).execute()
+    user = user_resp.data[0] if user_resp.data else None
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
     data = request.json
+    update_data = {}
 
     # Atualiza username
     if 'username' in data:
         # Verifica se novo username já existe
-        if User.query.filter(User.username == data['username'], User.id != user_id).first():
+        check_resp = supabase.table("users").select("*").eq("username", data['username']).neq("id", user_id).execute()
+        if check_resp.data:
             return jsonify({'error': 'Username already taken'}), 400
-        user.username = data['username']
+        update_data['username'] = data['username']
     
     # Atualiza senha
     if 'password' in data and data['password']:
-        user.set_password(data['password'])
+        from werkzeug.security import generate_password_hash
+        update_data['password_hash'] = generate_password_hash(data['password'])
     
     # Admin pode alterar role
-    if current_user.role == 'admin' and 'role' in data:
-        user.role = data['role']
+    if current_user.get("role") == 'admin' and 'role' in data:
+        update_data['role'] = data['role']
 
-    db.session.commit()
-    return jsonify(user.to_dict()), 200
+    if update_data:
+        supabase.table("users").update(update_data).eq("id", user_id).execute()
 
+    updated_resp = supabase.table("users").select("*").eq("id", user_id).execute()
+    updated_user = updated_resp.data[0] if updated_resp.data else None
+    return jsonify(updated_user), 200
 
 # ------------------------------
 # Deletar usuário
@@ -103,15 +120,18 @@ def update_user(user_id):
 @jwt_required()
 def delete_user(user_id):
     current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
+    resp = supabase.table("users").select("*").eq("id", current_user_id).execute()
+    current_user = resp.data[0] if resp.data else None
 
     # Restrição: apenas admin pode excluir outros usuários
-    if current_user.role != 'admin' and str(current_user_id) != str(user_id):
+    if current_user.get("role") != 'admin' and str(current_user_id) != str(user_id):
         return jsonify({'error': 'Unauthorized'}), 403
 
-    user = User.query.get_or_404(user_id)
+    user_resp = supabase.table("users").select("*").eq("id", user_id).execute()
+    user = user_resp.data[0] if user_resp.data else None
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
 
-    db.session.delete(user)
-    db.session.commit()
+    supabase.table("users").delete().eq("id", user_id).execute()
 
     return jsonify({'message': 'User deleted successfully'}), 200

@@ -1,9 +1,8 @@
 # src/models/__init__.py
 """
-Módulo de models centralizado.
+Models centralizados.
 Agora usamos Supabase (não mais SQLAlchemy).
 """
 
-# Importa os models para facilitar acesso
-from .user import *
-from .tool import *
+# 🔹 importa a conexão e funções utilitárias
+from .user import supabase, ensure_admin
