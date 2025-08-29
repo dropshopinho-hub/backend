@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.models.user import supabase
 from datetime import datetime
 
-reports_bp = Blueprint('reports', __name__)
+returns_bp = Blueprint('returns', __name__)
 
 def require_admin():
     current_user_id = get_jwt_identity()
@@ -13,7 +13,7 @@ def require_admin():
         return jsonify({'error': 'Admin access required'}), 403
     return None
 
-@reports_bp.route('/tools', methods=['GET'])
+@returns_bp.route('/tools', methods=['GET'])
 @jwt_required()
 def get_tools_report():
     admin_check = require_admin()
@@ -59,7 +59,7 @@ def get_tools_report():
 
     return jsonify({'report': report_data}), 200
 
-@reports_bp.route('/tools/pdf', methods=['GET'])
+@returns_bp.route('/tools/pdf', methods=['GET'])
 @jwt_required()
 def get_tools_pdf_report():
     admin_check = require_admin()
@@ -67,4 +67,4 @@ def get_tools_pdf_report():
         return admin_check
 
     # PDF generation not available in this environment
-    return jsonify({'message': 'PDF generation not available in this environment'}), 200
+    return jsonify({'message': 'PDF generation not available
