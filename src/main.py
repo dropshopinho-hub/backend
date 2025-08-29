@@ -1,6 +1,5 @@
 import os
 import sys
-# DON'T CHANGE THIS !!!
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from flask import Flask, send_from_directory
@@ -15,22 +14,15 @@ from src.routes.transfers import transfers_bp
 from src.routes.returns import returns_bp
 from src.routes.reports import reports_bp
 
-# -------------------------
-# 🔧 Configuração da aplicação Flask
-# -------------------------
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 app.config['JWT_SECRET_KEY'] = 'jwt-secret-string'
 
-# Enable CORS only for your frontend domain
-CORS(app, origins=["https://frontend-kar6mnd10-rafaelvercers-projects.vercel.app"])
+# CORS configurado para seu frontend Vercel
+CORS(app, origins=["https://frontend-kar6mnd10-rafaelvercers-projects.vercel.app"], supports_credentials=True)
 
-# Initialize JWT
 jwt = JWTManager(app)
 
-# -------------------------
-# 🔧 Registro das rotas
-# -------------------------
 app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(tools_bp, url_prefix='/api/tools')
@@ -39,9 +31,6 @@ app.register_blueprint(transfers_bp, url_prefix='/api/transfers')
 app.register_blueprint(returns_bp, url_prefix='/api/returns')
 app.register_blueprint(reports_bp, url_prefix='/api/reports')
 
-# -------------------------
-# 🔧 Rotas para servir frontend (Vercel ou build local)
-# -------------------------
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
