@@ -29,7 +29,8 @@ def create_tool():
 
     supabase.table("tool").insert({
         "name": nome,
-        "quantity": quantidade
+        "quantity": quantidade,
+        "total_quantity": quantidade  # Campo obrigatório preenchido
     }).execute()
 
     return jsonify({'message': 'Ferramenta cadastrada com sucesso'}), 201
@@ -45,4 +46,4 @@ def get_tools():
     tools = response.data if response.data else []
     return jsonify({'tools': tools}), 200
 
-# Adicione outros endpoints conforme
+# Adicione outros endpoints conforme necessário
