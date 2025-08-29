@@ -29,25 +29,25 @@ def create_assignment():
     user_id = data['user_id']
     quantity = int(data['quantity'])
 
-    # Check if tool exists
+    # Verifica se a ferramenta existe
     tool_resp = supabase.table("tool").select("*").eq("id", tool_id).execute()
     tool = tool_resp.data[0] if tool_resp.data else None
     if not tool:
         return jsonify({'error': 'Tool not found'}), 404
 
-    # Check if user exists
+    # Verifica se o usuário existe
     user_resp = supabase.table("users").select("*").eq("id", user_id).execute()
     user = user_resp.data[0] if user_resp.data else None
     if not user:
         return jsonify({'error': 'User not found'}), 404
 
-    # Check if enough available instances exist
+    # Verifica se há instâncias disponíveis
     instances_resp = supabase.table("tool_instance").select("*").eq("tool_id", tool_id).eq("status", "Disponível").limit(quantity).execute()
     available_instances = instances_resp.data
     if len(available_instances) < quantity:
         return jsonify({'error': 'Not enough available tools'}), 400
 
-    # Assign tools to user
+    # Atribui as ferramentas ao usuário
     for i in range(quantity):
         instance = available_instances[i]
         update_data = {
@@ -57,7 +57,7 @@ def create_assignment():
         }
         supabase.table("tool_instance").update(update_data).eq("id", instance["id"]).execute()
 
-        # Log the assignment
+        # Log da atribuição
         log = ToolLog(
             tool_instance_id=instance["id"],
             action='Atribuição',
@@ -73,7 +73,7 @@ def create_assignment():
 def confirm_assignment(assignment_id):
     current_user_id = get_jwt_identity()
 
-    # Find the tool instance
+    # Busca a instância da ferramenta
     instance_resp = supabase.table("tool_instance").select("*").eq("id", assignment_id).execute()
     instance = instance_resp.data[0] if instance_resp.data else None
 
@@ -86,10 +86,10 @@ def confirm_assignment(assignment_id):
     if instance.get("status") != 'Pendente de Confirmação':
         return jsonify({'error': 'Assignment not pending confirmation'}), 400
 
-    # Confirm assignment
+    # Confirma a atribuição
     supabase.table("tool_instance").update({"status": "Emprestado"}).eq("id", assignment_id).execute()
 
-    # Log the confirmation
+    # Log da confirmação
     log = ToolLog(
         tool_instance_id=assignment_id,
         action='Confirmação',
@@ -107,15 +107,15 @@ def get_user_assignments(user_id):
     user_resp = supabase.table("users").select("*").eq("id", current_user_id).execute()
     current_user = user_resp.data[0] if user_resp.data else None
 
-    # Users can only see their own assignments, admins can see any user's assignments
+    # Usuários só podem ver suas próprias atribuições, admins podem ver de qualquer usuário
     if current_user.get("role") != 'admin' and current_user_id != user_id:
         return jsonify({'error': 'Unauthorized'}), 403
 
-    # Get pending assignments
+    # Busca atribuições pendentes
     pending_resp = supabase.table("tool_instance").select("*").eq("current_user_id", user_id).eq("status", "Pendente de Confirmação").execute()
     pending_assignments = pending_resp.data
 
-    # Get confirmed assignments
+    # Busca atribuições confirmadas
     confirmed_resp = supabase.table("tool_instance").select("*").eq("current_user_id", user_id).eq("status", "Emprestado").execute()
     confirmed_assignments = confirmed_resp.data
 
