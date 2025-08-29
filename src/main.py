@@ -19,7 +19,7 @@ app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 app.config['JWT_SECRET_KEY'] = 'jwt-secret-string'
 
 # CORS configurado para seu frontend Vercel
-CORS(app, origins=["https://frontend-kar6mndl0-rafaelvercers-projects.vercel.app"], supports_credentials=True)
+CORS(app)
 
 jwt = JWTManager(app)
 
