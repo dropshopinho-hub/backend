@@ -7,10 +7,9 @@ from flask import Flask, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
-# ✅ Agora os models não têm mais db
 from src.routes.user import user_bp
 from src.routes.auth import auth_bp
-from src.routes.tools import tools_bp  # Certifique-se que tools_bp está definido em tools.py
+from src.routes.tools import tools_bp
 from src.routes.assignments import assignments_bp
 from src.routes.transfers import transfers_bp
 from src.routes.returns import returns_bp
@@ -23,8 +22,8 @@ app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'sta
 app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 app.config['JWT_SECRET_KEY'] = 'jwt-secret-string'
 
-# Enable CORS for all routes
-CORS(app)
+# Enable CORS only for your frontend domain
+CORS(app, origins=["https://frontend-kar6mnd10-rafaelvercers-projects.vercel.app"])
 
 # Initialize JWT
 jwt = JWTManager(app)
@@ -60,5 +59,4 @@ def serve(path):
             return "index.html not found", 404
 
 if __name__ == '__main__':
-    # ✅ Flask roda no Render sem problema
     app.run(host='0.0.0.0', port=5000, debug=True)
