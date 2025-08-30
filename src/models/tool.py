@@ -1,14 +1,6 @@
 import uuid
 from datetime import datetime
-from supabase import create_client, Client
-
-# -------------------------
-# 🔧 Conexão com o Supabase
-# -------------------------
-url = "https://yglyswztimbvkipsbeux.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlnbHlzd3p0aW1idmtpcHNiZXV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTcwNTksImV4cCI6MjA3MTk3MzA1OX0.0sM6gpMicEc-sM7vjEWlnEEyGIvSbju9nln94dcPAm0"
-
-supabase: Client = create_client(url, key)
+from src import supabase
 
 # -------------------------
 # 📦 Modelo: Ferramenta

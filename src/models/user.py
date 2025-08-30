@@ -1,13 +1,7 @@
 # src/models/user.py
 import uuid
-from supabase import create_client, Client
+from src import supabase
 from werkzeug.security import generate_password_hash
-
-# 🔑 Conexão direta com o Supabase (rápido, mas menos seguro)
-url = "https://yglyswztimbvkipsbeux.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlnbHlzd3p0aW1idmtpcHNiZXV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTcwNTksImV4cCI6MjA3MTk3MzA1OX0.0sM6gpMicEc-sM7vjEWlnEEyGIvSbju9nln94dcPAm0"
-
-supabase: Client = create_client(url, key)
 
 # Definição do usuário admin
 ADMIN_USERNAME = "RafaelPinho"
