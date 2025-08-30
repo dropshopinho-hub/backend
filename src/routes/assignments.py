@@ -107,8 +107,12 @@ def get_user_assignments(user_id):
     user_resp = supabase.table("users").select("*").eq("id", current_user_id).execute()
     current_user = user_resp.data[0] if user_resp.data else None
 
+    print(f"DEBUG: current_user_id={current_user_id}, user_id={user_id}")
+    print(f"DEBUG: current_user={current_user}")
+
     # Usuários só podem ver suas próprias atribuições, admins veem todas
     if current_user.get("role") != 'admin' and str(current_user_id) != str(user_id):
+        print(f"DEBUG: Authorization failed - role={current_user.get('role')}, current_user_id={current_user_id}, user_id={user_id}")
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Atribuições pendentes
@@ -126,13 +130,18 @@ def get_user_assignments(user_id):
     confirmed_resp = supabase.table("tool_instance").select("*").eq("current_user_id", user_id).eq("status", "Emprestado").execute()
     confirmed_assignments = confirmed_resp.data
     
+    print(f"DEBUG: Found {len(confirmed_assignments)} confirmed assignments")
+    
     # Buscar nome da ferramenta separadamente para cada atribuição confirmada
     for assignment in confirmed_assignments:
         if assignment.get('tool_id'):
             tool_resp = supabase.table("tool").select("name").eq("id", assignment['tool_id']).execute()
             if tool_resp.data:
                 assignment['name'] = tool_resp.data[0]['name']
+                print(f"DEBUG: Assignment {assignment['id']} - Tool: {assignment['name']}")
 
+    print(f"DEBUG: Returning {len(pending_assignments)} pending, {len(confirmed_assignments)} confirmed")
+    
     return jsonify({
         'pending': pending_assignments,
         'confirmed': confirmed_assignments
