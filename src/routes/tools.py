@@ -40,11 +40,14 @@ def create_tool():
     tool_id = response.data[0]["id"]
 
     # Cria uma instância disponível para essa ferramenta
-    supabase.table("tool_instance").insert({
+    instance_response = supabase.table("tool_instance").insert({
         "tool_id": tool_id,
         "status": "Disponível",
         "quantity": quantidade  # Cria a quantidade informada
     }).execute()
+
+    if not instance_response.data:
+        return jsonify({'error': 'Erro ao criar instância da ferramenta'}), 400
 
     return jsonify({'message': 'Ferramenta cadastrada com sucesso'}), 201
 
