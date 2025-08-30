@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.models.user import supabase
+from src import supabase
 from werkzeug.security import generate_password_hash
 
 user_bp = Blueprint('user', __name__)

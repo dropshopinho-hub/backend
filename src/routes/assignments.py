@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.models.user import supabase  # Importa o cliente Supabase
+from src import supabase
 from src.models.tool import Tool, ToolInstance, ToolLog
 from datetime import datetime
 
