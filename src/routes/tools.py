@@ -62,11 +62,29 @@ def get_tools():
     tools_response = supabase.table("tool").select("*").execute()
     tools_data = tools_response.data if tools_response.data else []
     
-    # Para cada ferramenta, conta as instâncias por status
+    # Para cada ferramenta, busca instâncias com informações de usuário
     formatted_tools = []
     for tool in tools_data:
-        instances_response = supabase.table("tool_instance").select("*").eq("tool_id", tool['id']).execute()
+        instances_response = supabase.table("tool_instance").select("""
+            *,
+            users:current_user_id (
+                id,
+                username
+            )
+        """).eq("tool_id", tool['id']).execute()
         instances = instances_response.data if instances_response.data else []
+        
+        # Se não há instâncias, cria instâncias automaticamente
+        if not instances:
+            quantity = tool.get('quantity', tool.get('total_quantity', 1))
+            for _ in range(int(quantity)):
+                instance_response = supabase.table("tool_instance").insert({
+                    "tool_id": tool['id'],
+                    "status": "Disponível",
+                    "quantity": 1
+                }).execute()
+                if instance_response.data:
+                    instances.append(instance_response.data[0])
         
         # Conta instâncias por status
         status_count = {}
@@ -74,52 +92,81 @@ def get_tools():
             status = instance['status']
             status_count[status] = status_count.get(status, 0) + 1
         
-        # Determina status principal da ferramenta
-        if status_count.get('Disponível', 0) > 0:
-            main_status = 'Disponível'
-        elif status_count.get('Emprestado', 0) > 0:
-            main_status = 'Emprestado'
+        # Se ainda não há instâncias, mostra a ferramenta como disponível
+        if not instances:
+            formatted_tools.append({
+                'tool_id': tool['id'],
+                'name': tool['name'],
+                'quantity': tool.get('quantity', tool.get('total_quantity', 1)),
+                'total_quantity': tool.get('quantity', tool.get('total_quantity', 1)),
+                'available_quantity': tool.get('quantity', tool.get('total_quantity', 1)),
+                'borrowed_quantity': 0,
+                'status': 'Disponível',
+                'username': None,
+                'assigned_at': None,
+                'current_user_id': None,
+                'instance_id': None
+            })
         else:
-            main_status = 'Indisponível'
-        
-        formatted_tools.append({
-            'tool_id': tool['id'],
-            'name': tool['name'],
-            'total_quantity': tool.get('total_quantity', len(instances)),
-            'available_quantity': status_count.get('Disponível', 0),
-            'borrowed_quantity': status_count.get('Emprestado', 0),
-            'status': main_status,
-            'instances': len(instances)
-        })
+            # Para cada instância, cria uma entrada na lista
+            for instance in instances:
+                user_info = instance.get('users')
+                formatted_tools.append({
+                    'tool_id': tool['id'],
+                    'name': tool['name'],
+                    'quantity': instance.get('quantity', 1),
+                    'total_quantity': tool.get('total_quantity', len(instances)),
+                    'available_quantity': status_count.get('Disponível', 0),
+                    'borrowed_quantity': status_count.get('Emprestado', 0),
+                    'status': instance['status'],
+                    'username': user_info['username'] if user_info else None,
+                    'assigned_at': instance.get('assigned_at'),
+                    'current_user_id': instance.get('current_user_id'),
+                    'instance_id': instance['id']
+                })
     
     return jsonify({'tools': formatted_tools}), 200
 
 @tools_bp.route('/instances', methods=['GET'])
 @jwt_required()
 def get_tool_instances():
-    # Endpoint para atribuições - retorna instâncias individuais
-    response = supabase.table("tool_instance").select("""
-        *,
-        tool:tool_id (
-            id,
-            name
-        )
-    """).execute()
+    # Endpoint para atribuições - retorna apenas instâncias disponíveis
     
-    instances = response.data if response.data else []
+    # Primeiro busca todas as ferramentas
+    tools_response = supabase.table("tool").select("*").execute()
+    tools_data = tools_response.data if tools_response.data else []
     
-    formatted_instances = []
-    for instance in instances:
-        if instance.get('tool'):
-            formatted_instances.append({
-                'id': instance['id'],
-                'tool_id': instance['tool_id'],
-                'tool_name': instance['tool']['name'],
-                'status': instance['status'],
-                'quantity': instance['quantity'],
-                'current_user_id': instance.get('current_user_id'),
-                'assigned_at': instance.get('assigned_at')
-            })
+    available_instances = []
     
-    return jsonify({'tools': formatted_instances}), 200
+    for tool in tools_data:
+        # Busca instâncias desta ferramenta
+        instances_response = supabase.table("tool_instance").select("*").eq("tool_id", tool['id']).execute()
+        instances = instances_response.data if instances_response.data else []
+        
+        # Se não há instâncias, cria automaticamente
+        if not instances:
+            quantity = tool.get('quantity', tool.get('total_quantity', 1))
+            for _ in range(int(quantity)):
+                instance_response = supabase.table("tool_instance").insert({
+                    "tool_id": tool['id'],
+                    "status": "Disponível",
+                    "quantity": 1
+                }).execute()
+                if instance_response.data:
+                    instances.append(instance_response.data[0])
+        
+        # Adiciona apenas instâncias disponíveis
+        for instance in instances:
+            if instance['status'] == 'Disponível':
+                available_instances.append({
+                    'id': instance['id'],
+                    'tool_id': instance['tool_id'],
+                    'tool_name': tool['name'],
+                    'status': instance['status'],
+                    'quantity': instance.get('quantity', 1),
+                    'current_user_id': instance.get('current_user_id'),
+                    'assigned_at': instance.get('assigned_at')
+                })
+    
+    return jsonify({'tools': available_instances}), 200
 # Adicione outros endpoints conforme necessário
