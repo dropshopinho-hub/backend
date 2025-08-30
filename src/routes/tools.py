@@ -58,9 +58,32 @@ def get_tools():
     if admin_check:
         return admin_check
 
-    response = supabase.table("tool").select("*").execute()
-    tools = response.data if response.data else []
-    return jsonify({'tools': tools}), 200
+    # Busca instâncias de ferramentas com informações da ferramenta
+    response = supabase.table("tool_instance").select("""
+        *,
+        tool:tool_id (
+            id,
+            name
+        )
+    """).execute()
+    
+    instances = response.data if response.data else []
+    
+    # Formata os dados para o frontend
+    formatted_tools = []
+    for instance in instances:
+        if instance.get('tool'):
+            formatted_tools.append({
+                'id': instance['id'],
+                'tool_id': instance['tool_id'],
+                'tool_name': instance['tool']['name'],
+                'status': instance['status'],
+                'quantity': instance['quantity'],
+                'current_user_id': instance.get('current_user_id'),
+                'assigned_at': instance.get('assigned_at')
+            })
+    
+    return jsonify({'tools': formatted_tools}), 200
 
 @tools_bp.route('/instances', methods=['GET'])
 @jwt_required()
