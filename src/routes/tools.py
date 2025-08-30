@@ -58,7 +58,46 @@ def get_tools():
     if admin_check:
         return admin_check
 
-    # Busca instâncias de ferramentas com informações da ferramenta
+    # Busca ferramentas da tabela principal
+    tools_response = supabase.table("tool").select("*").execute()
+    tools_data = tools_response.data if tools_response.data else []
+    
+    # Para cada ferramenta, conta as instâncias por status
+    formatted_tools = []
+    for tool in tools_data:
+        instances_response = supabase.table("tool_instance").select("*").eq("tool_id", tool['id']).execute()
+        instances = instances_response.data if instances_response.data else []
+        
+        # Conta instâncias por status
+        status_count = {}
+        for instance in instances:
+            status = instance['status']
+            status_count[status] = status_count.get(status, 0) + 1
+        
+        # Determina status principal da ferramenta
+        if status_count.get('Disponível', 0) > 0:
+            main_status = 'Disponível'
+        elif status_count.get('Emprestado', 0) > 0:
+            main_status = 'Emprestado'
+        else:
+            main_status = 'Indisponível'
+        
+        formatted_tools.append({
+            'tool_id': tool['id'],
+            'name': tool['name'],
+            'total_quantity': tool.get('total_quantity', len(instances)),
+            'available_quantity': status_count.get('Disponível', 0),
+            'borrowed_quantity': status_count.get('Emprestado', 0),
+            'status': main_status,
+            'instances': len(instances)
+        })
+    
+    return jsonify({'tools': formatted_tools}), 200
+
+@tools_bp.route('/instances', methods=['GET'])
+@jwt_required()
+def get_tool_instances():
+    # Endpoint para atribuições - retorna instâncias individuais
     response = supabase.table("tool_instance").select("""
         *,
         tool:tool_id (
@@ -69,11 +108,10 @@ def get_tools():
     
     instances = response.data if response.data else []
     
-    # Formata os dados para o frontend
-    formatted_tools = []
+    formatted_instances = []
     for instance in instances:
         if instance.get('tool'):
-            formatted_tools.append({
+            formatted_instances.append({
                 'id': instance['id'],
                 'tool_id': instance['tool_id'],
                 'tool_name': instance['tool']['name'],
@@ -83,16 +121,5 @@ def get_tools():
                 'assigned_at': instance.get('assigned_at')
             })
     
-    return jsonify({'tools': formatted_tools}), 200
-
-@tools_bp.route('/instances', methods=['GET'])
-@jwt_required()
-def get_available_tool_instances():
-    status = request.args.get('status', None)
-    query = supabase.table("tool_instance").select("*")
-    if status:
-        query = query.eq("status", status)
-    response = query.execute()
-    instances = response.data if response.data else []
-    return jsonify(instances), 200
+    return jsonify({'tools': formatted_instances}), 200
 # Adicione outros endpoints conforme necessário
