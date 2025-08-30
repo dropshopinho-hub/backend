@@ -17,41 +17,50 @@ def require_admin():
 @returns_bp.route('/tools/return/<tool_instance_id>', methods=['POST'])
 @jwt_required()
 def return_tool(tool_instance_id):
-    current_user_id = get_jwt_identity()
-    
-    # Buscar a instância da ferramenta
-    instance_resp = supabase.table("tool_instance").select("*").eq("id", tool_instance_id).execute()
-    instance = instance_resp.data[0] if instance_resp.data else None
-    
-    if not instance:
-        return jsonify({'error': 'Tool instance not found'}), 404
-    
-    # Verificar se o usuário atual é o dono da ferramenta
-    if instance.get('current_user_id') != current_user_id:
-        return jsonify({'error': 'Unauthorized - you do not own this tool'}), 403
-    
-    # Verificar se a ferramenta está emprestada
-    if instance.get('status') != 'Emprestado':
-        return jsonify({'error': 'Tool is not currently borrowed'}), 400
-    
-    # Atualizar status para disponível
-    supabase.table("tool_instance").update({
-        'status': 'Disponível',
-        'current_user_id': None,
-        'assigned_at': None
-    }).eq("id", tool_instance_id).execute()
-    
-    # Registrar log da devolução
-    log = ToolLog(
-        tool_instance_id=tool_instance_id,
-        action="Devolução",
-        from_user_id=current_user_id,
-        to_user_id=None,
-        timestamp=datetime.now().isoformat()
-    )
-    supabase.table("tool_log").insert(log.to_dict()).execute()
-    
-    return jsonify({'message': 'Tool returned successfully'}), 200
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Buscar a instância da ferramenta
+        instance_resp = supabase.table("tool_instance").select("*").eq("id", tool_instance_id).execute()
+        instance = instance_resp.data[0] if instance_resp.data else None
+        
+        if not instance:
+            return jsonify({'error': 'Tool instance not found'}), 404
+        
+        # Verificar se o usuário atual é o dono da ferramenta
+        if instance.get('current_user_id') != current_user_id:
+            return jsonify({'error': 'Unauthorized - you do not own this tool'}), 403
+        
+        # Verificar se a ferramenta está emprestada
+        if instance.get('status') != 'Emprestado':
+            return jsonify({'error': 'Tool is not currently borrowed'}), 400
+        
+        # Atualizar status para disponível
+        supabase.table("tool_instance").update({
+            'status': 'Disponível',
+            'current_user_id': None,
+            'assigned_at': None
+        }).eq("id", tool_instance_id).execute()
+        
+        # Registrar log da devolução (opcional - não falha se der erro)
+        try:
+            from datetime import datetime
+            log_data = {
+                'tool_instance_id': tool_instance_id,
+                'action': 'Devolução',
+                'from_user_id': current_user_id,
+                'to_user_id': None,
+                'timestamp': datetime.now().isoformat()
+            }
+            supabase.table("tool_log").insert(log_data).execute()
+        except Exception as log_error:
+            print(f"Warning: Could not log return action: {log_error}")
+        
+        return jsonify({'message': 'Tool returned successfully'}), 200
+        
+    except Exception as e:
+        print(f"Error in return_tool: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @returns_bp.route('/tools', methods=['GET'])
 @jwt_required()
