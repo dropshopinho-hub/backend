@@ -27,10 +27,23 @@ def create_tool():
     nome = data['name']
     quantidade = data['quantity']
 
-    supabase.table("tool").insert({
+    # Cria a ferramenta na tabela tool
+    response = supabase.table("tool").insert({
         "name": nome,
         "quantity": quantidade,
         "total_quantity": quantidade  # Campo obrigatório preenchido
+    }).execute()
+
+    if not response.data:
+        return jsonify({'error': 'Erro ao cadastrar ferramenta'}), 400
+
+    tool_id = response.data[0]["id"]
+
+    # Cria uma instância disponível para essa ferramenta
+    supabase.table("tool_instance").insert({
+        "tool_id": tool_id,
+        "status": "Disponível",
+        "quantity": quantidade  # Cria a quantidade informada
     }).execute()
 
     return jsonify({'message': 'Ferramenta cadastrada com sucesso'}), 201
