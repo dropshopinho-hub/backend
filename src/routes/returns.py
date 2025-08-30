@@ -76,16 +76,24 @@ def get_pending_returns():
         # Para cada ferramenta, buscar nome da ferramenta e nome do usuário
         for item in pending_returns:
             # Buscar nome da ferramenta
+            item['tool_name'] = 'Nome não encontrado'
             if item.get('tool_id'):
-                tool_resp = supabase.table("tool").select("name").eq("id", item['tool_id']).execute()
-                if tool_resp.data:
-                    item['tool_name'] = tool_resp.data[0]['name']
+                try:
+                    tool_resp = supabase.table("tool").select("name").eq("id", item['tool_id']).execute()
+                    if tool_resp.data and len(tool_resp.data) > 0:
+                        item['tool_name'] = tool_resp.data[0]['name']
+                except Exception as e:
+                    print(f"Error fetching tool name: {e}")
             
             # Buscar nome do usuário
+            item['user_name'] = 'Usuário não encontrado'
             if item.get('current_user_id'):
-                user_resp = supabase.table("users").select("name").eq("id", item['current_user_id']).execute()
-                if user_resp.data:
-                    item['user_name'] = user_resp.data[0]['name']
+                try:
+                    user_resp = supabase.table("users").select("username").eq("id", item['current_user_id']).execute()
+                    if user_resp.data and len(user_resp.data) > 0:
+                        item['user_name'] = user_resp.data[0]['username']
+                except Exception as e:
+                    print(f"Error fetching user name: {e}")
         
         return jsonify(pending_returns), 200
         
