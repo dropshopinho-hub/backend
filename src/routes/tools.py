@@ -46,4 +46,14 @@ def get_tools():
     tools = response.data if response.data else []
     return jsonify({'tools': tools}), 200
 
+@tools_bp.route('/instances', methods=['GET'])
+@jwt_required()
+def get_available_tool_instances():
+    status = request.args.get('status', None)
+    query = supabase.table("tool_instance").select("*")
+    if status:
+        query = query.eq("status", status)
+    response = query.execute()
+    instances = response.data if response.data else []
+    return jsonify(instances), 200
 # Adicione outros endpoints conforme necessário
