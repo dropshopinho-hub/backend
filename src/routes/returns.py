@@ -93,6 +93,54 @@ def get_pending_returns():
         print(f"Error getting pending returns: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
+# Endpoint para aceitar devolução (admin) - versão alternativa
+@returns_bp.route('/<tool_instance_id>/accept', methods=['PUT'])
+@jwt_required()
+def accept_return(tool_instance_id):
+    admin_check = require_admin()
+    if admin_check:
+        return admin_check
+    
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Buscar a instância da ferramenta
+        instance_resp = supabase.table("tool_instance").select("*").eq("id", tool_instance_id).execute()
+        instance = instance_resp.data[0] if instance_resp.data else None
+        
+        if not instance:
+            return jsonify({'error': 'Tool instance not found'}), 404
+        
+        if instance.get('status') != 'Pendente de Devolução':
+            return jsonify({'error': 'Tool is not pending return'}), 400
+        
+        # Aprovar devolução - tornar disponível
+        supabase.table("tool_instance").update({
+            'status': 'Disponível',
+            'current_user_id': None,
+            'assigned_at': None
+        }).eq("id", tool_instance_id).execute()
+        
+        # Log da aprovação
+        try:
+            from datetime import datetime
+            log_data = {
+                'tool_instance_id': tool_instance_id,
+                'action': 'Devolução Aprovada',
+                'from_user_id': instance.get('current_user_id'),
+                'to_user_id': current_user_id,
+                'timestamp': datetime.now().isoformat()
+            }
+            supabase.table("tool_log").insert(log_data).execute()
+        except Exception as log_error:
+            print(f"Warning: Could not log approval: {log_error}")
+        
+        return jsonify({'message': 'Return approved successfully'}), 200
+        
+    except Exception as e:
+        print(f"Error approving return: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 # Endpoint para aceitar devolução (admin)
 @returns_bp.route('/approve/<tool_instance_id>', methods=['POST'])
 @jwt_required()
@@ -139,6 +187,52 @@ def approve_return(tool_instance_id):
         
     except Exception as e:
         print(f"Error approving return: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+# Endpoint para recusar devolução (admin) - versão alternativa
+@returns_bp.route('/<tool_instance_id>/reject', methods=['PUT'])
+@jwt_required()
+def reject_return_alt(tool_instance_id):
+    admin_check = require_admin()
+    if admin_check:
+        return admin_check
+    
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Buscar a instância da ferramenta
+        instance_resp = supabase.table("tool_instance").select("*").eq("id", tool_instance_id).execute()
+        instance = instance_resp.data[0] if instance_resp.data else None
+        
+        if not instance:
+            return jsonify({'error': 'Tool instance not found'}), 404
+        
+        if instance.get('status') != 'Pendente de Devolução':
+            return jsonify({'error': 'Tool is not pending return'}), 400
+        
+        # Recusar devolução - volta para emprestado
+        supabase.table("tool_instance").update({
+            'status': 'Emprestado'
+        }).eq("id", tool_instance_id).execute()
+        
+        # Log da rejeição
+        try:
+            from datetime import datetime
+            log_data = {
+                'tool_instance_id': tool_instance_id,
+                'action': 'Devolução Rejeitada',
+                'from_user_id': instance.get('current_user_id'),
+                'to_user_id': current_user_id,
+                'timestamp': datetime.now().isoformat()
+            }
+            supabase.table("tool_log").insert(log_data).execute()
+        except Exception as log_error:
+            print(f"Warning: Could not log rejection: {log_error}")
+        
+        return jsonify({'message': 'Return rejected successfully'}), 200
+        
+    except Exception as e:
+        print(f"Error rejecting return: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
 # Endpoint para recusar devolução (admin)
