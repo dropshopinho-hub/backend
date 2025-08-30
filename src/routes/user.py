@@ -14,7 +14,7 @@ def get_users():
     current_user_id = get_jwt_identity()
     resp = supabase.table("users").select("*").neq("id", current_user_id).execute()
     users = resp.data if resp.data else []
-    return jsonify({'users': users}), 200
+    return jsonify(users), 200
 
 # ------------------------------
 # Criar usuário (aberto - sem login)
