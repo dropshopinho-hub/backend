@@ -114,10 +114,24 @@ def get_user_assignments(user_id):
     # Atribuições pendentes
     pending_resp = supabase.table("tool_instance").select("*").eq("current_user_id", user_id).eq("status", "Pendente de Confirmação").execute()
     pending_assignments = pending_resp.data
+    
+    # Buscar nome da ferramenta separadamente para cada atribuição pendente
+    for assignment in pending_assignments:
+        if assignment.get('tool_id'):
+            tool_resp = supabase.table("tool").select("name").eq("id", assignment['tool_id']).execute()
+            if tool_resp.data:
+                assignment['name'] = tool_resp.data[0]['name']
 
     # Atribuições confirmadas
     confirmed_resp = supabase.table("tool_instance").select("*").eq("current_user_id", user_id).eq("status", "Emprestado").execute()
     confirmed_assignments = confirmed_resp.data
+    
+    # Buscar nome da ferramenta separadamente para cada atribuição confirmada
+    for assignment in confirmed_assignments:
+        if assignment.get('tool_id'):
+            tool_resp = supabase.table("tool").select("name").eq("id", assignment['tool_id']).execute()
+            if tool_resp.data:
+                assignment['name'] = tool_resp.data[0]['name']
 
     return jsonify({
         'pending': pending_assignments,
