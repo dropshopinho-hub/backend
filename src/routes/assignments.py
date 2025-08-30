@@ -108,7 +108,7 @@ def get_user_assignments(user_id):
     current_user = user_resp.data[0] if user_resp.data else None
 
     # Usuários só podem ver suas próprias atribuições, admins veem todas
-    if current_user.get("role") != 'admin' and current_user_id != user_id:
+    if current_user.get("role") != 'admin' and str(current_user_id) != str(user_id):
         return jsonify({'error': 'Unauthorized'}), 403
 
     # Atribuições pendentes
