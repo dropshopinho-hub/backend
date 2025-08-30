@@ -65,13 +65,7 @@ def get_tools():
     # Para cada ferramenta, busca instâncias com informações de usuário
     formatted_tools = []
     for tool in tools_data:
-        instances_response = supabase.table("tool_instance").select("""
-            *,
-            users:current_user_id (
-                id,
-                username
-            )
-        """).eq("tool_id", tool['id']).execute()
+        instances_response = supabase.table("tool_instance").select("*").eq("tool_id", tool['id']).execute()
         instances = instances_response.data if instances_response.data else []
         
         # Se não há instâncias, cria instâncias automaticamente
@@ -110,7 +104,13 @@ def get_tools():
         else:
             # Para cada instância, cria uma entrada na lista
             for instance in instances:
-                user_info = instance.get('users')
+                username = None
+                if instance.get('current_user_id'):
+                    # Busca o nome do usuário separadamente
+                    user_response = supabase.table("users").select("username").eq("id", instance['current_user_id']).execute()
+                    if user_response.data:
+                        username = user_response.data[0]['username']
+                
                 formatted_tools.append({
                     'tool_id': tool['id'],
                     'name': tool['name'],
@@ -119,13 +119,30 @@ def get_tools():
                     'available_quantity': status_count.get('Disponível', 0),
                     'borrowed_quantity': status_count.get('Emprestado', 0),
                     'status': instance['status'],
-                    'username': user_info['username'] if user_info else None,
+                    'username': username,
                     'assigned_at': instance.get('assigned_at'),
                     'current_user_id': instance.get('current_user_id'),
                     'instance_id': instance['id']
                 })
     
-    return jsonify({'tools': formatted_tools}), 200
+    # Agrupa ferramentas por nome e usuário
+    grouped_tools = {}
+    for tool in formatted_tools:
+        key = f"{tool['name']}_{tool['username'] or 'sem_usuario'}"
+        
+        if key in grouped_tools:
+            # Soma as quantidades
+            grouped_tools[key]['quantity'] += tool['quantity']
+            # Mantém a data mais recente
+            if tool['assigned_at'] and (not grouped_tools[key]['assigned_at'] or tool['assigned_at'] > grouped_tools[key]['assigned_at']):
+                grouped_tools[key]['assigned_at'] = tool['assigned_at']
+        else:
+            grouped_tools[key] = tool.copy()
+    
+    # Converte de volta para lista
+    final_tools = list(grouped_tools.values())
+    
+    return jsonify({'tools': final_tools}), 200
 
 @tools_bp.route('/instances', methods=['GET'])
 @jwt_required()
