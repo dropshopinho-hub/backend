@@ -161,8 +161,28 @@ def get_pending_transfers(user_id):
     if current_user.get("role") != 'admin' and str(current_user_id) != str(user_id):
         return jsonify({'error': 'Unauthorized'}), 403
     
-    pending_resp = supabase.table("tool_instance").select("*").eq("transferred_to_user_id", user_id).eq("status", "Aguardando Confirmação de Transferência").execute()
-    pending_transfers = pending_resp.data if pending_resp.data else []
+    # Buscar transferências pendentes com nomes de ferramenta e usuário
+    pending_resp = supabase.table("tool_instance").select("""
+        *,
+        tool:tool_id (name),
+        current_user:current_user_id (username),
+        transferred_to_user:transferred_to_user_id (username)
+    """).eq("transferred_to_user_id", user_id).eq("status", "Aguardando Confirmação de Transferência").execute()
+    
+    pending_transfers = []
+    for transfer in (pending_resp.data if pending_resp.data else []):
+        # Extrair nomes das relações
+        tool_name = transfer.get('tool', {}).get('name', 'Nome não encontrado') if transfer.get('tool') else 'Nome não encontrado'
+        from_user_name = transfer.get('current_user', {}).get('username', 'Usuário não encontrado') if transfer.get('current_user') else 'Usuário não encontrado'
+        
+        # Criar objeto com nomes incluídos
+        transfer_data = {
+            **transfer,
+            'tool_name': tool_name,
+            'from_user_name': from_user_name,
+            'name': tool_name  # Para compatibilidade com frontend
+        }
+        pending_transfers.append(transfer_data)
     
     return jsonify({
         'pending_transfers': pending_transfers
