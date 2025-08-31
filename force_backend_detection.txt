@@ -1,0 +1,7 @@
+Backend changes made:
+- Added PUT endpoint for updating tools
+- Added DELETE endpoint for removing tools
+- Both endpoints include admin validation and safety checks
+
+Please commit these changes to the backend repository.
+Timestamp: 2025-08-31 01:13:21
