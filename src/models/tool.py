@@ -89,3 +89,4 @@ class ToolLog:
 
     def save(self):
         supabase.table("tool_log").insert(self.to_dict()).execute()
+
