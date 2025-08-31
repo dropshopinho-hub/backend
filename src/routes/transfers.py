@@ -161,28 +161,37 @@ def get_pending_transfers(user_id):
     if current_user.get("role") != 'admin' and str(current_user_id) != str(user_id):
         return jsonify({'error': 'Unauthorized'}), 403
     
-    # Buscar transferências pendentes com nomes de ferramenta e usuário
-    pending_resp = supabase.table("tool_instance").select("""
-        *,
-        tool:tool_id (name),
-        current_user:current_user_id (username),
-        transferred_to_user:transferred_to_user_id (username)
-    """).eq("transferred_to_user_id", user_id).eq("status", "Aguardando Confirmação de Transferência").execute()
+    # Buscar transferências pendentes
+    pending_resp = supabase.table("tool_instance").select("*").eq("transferred_to_user_id", user_id).eq("status", "Aguardando Confirmação de Transferência").execute()
     
     pending_transfers = []
     for transfer in (pending_resp.data if pending_resp.data else []):
-        # Extrair nomes das relações
-        tool_name = transfer.get('tool', {}).get('name', 'Nome não encontrado') if transfer.get('tool') else 'Nome não encontrado'
-        from_user_name = transfer.get('current_user', {}).get('username', 'Usuário não encontrado') if transfer.get('current_user') else 'Usuário não encontrado'
-        
-        # Criar objeto com nomes incluídos
-        transfer_data = {
-            **transfer,
-            'tool_name': tool_name,
-            'from_user_name': from_user_name,
-            'name': tool_name  # Para compatibilidade com frontend
-        }
-        pending_transfers.append(transfer_data)
+        try:
+            # Buscar nome da ferramenta
+            tool_resp = supabase.table("tool").select("name").eq("id", transfer.get('tool_id')).execute()
+            tool_name = tool_resp.data[0]['name'] if tool_resp.data and len(tool_resp.data) > 0 else f"Tool ID: {transfer.get('tool_id')}"
+            
+            # Buscar nome do usuário atual (quem está transferindo)
+            user_resp = supabase.table("users").select("username").eq("id", transfer.get('current_user_id')).execute()
+            from_user_name = user_resp.data[0]['username'] if user_resp.data and len(user_resp.data) > 0 else f"User ID: {transfer.get('current_user_id')}"
+            
+            # Criar objeto com nomes incluídos
+            transfer_data = {
+                **transfer,
+                'tool_name': tool_name,
+                'from_user_name': from_user_name,
+                'name': tool_name  # Para compatibilidade com frontend
+            }
+            pending_transfers.append(transfer_data)
+        except Exception as e:
+            # Em caso de erro, usar IDs como fallback
+            transfer_data = {
+                **transfer,
+                'tool_name': f"Tool ID: {transfer.get('tool_id')}",
+                'from_user_name': f"User ID: {transfer.get('current_user_id')}",
+                'name': f"Tool ID: {transfer.get('tool_id')}"
+            }
+            pending_transfers.append(transfer_data)
     
     return jsonify({
         'pending_transfers': pending_transfers
