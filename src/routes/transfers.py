@@ -166,33 +166,43 @@ def get_pending_transfers(user_id):
     
     pending_transfers = []
     for transfer in (pending_resp.data if pending_resp.data else []):
-        try:
-            # Buscar nome da ferramenta
-            tool_resp = supabase.table("tool").select("name").eq("id", transfer.get('tool_id')).execute()
-            tool_name = tool_resp.data[0]['name'] if tool_resp.data and len(tool_resp.data) > 0 else f"Tool ID: {transfer.get('tool_id')}"
-            
-            # Buscar nome do usuário atual (quem está transferindo)
-            user_resp = supabase.table("users").select("username").eq("id", transfer.get('current_user_id')).execute()
-            from_user_name = user_resp.data[0]['username'] if user_resp.data and len(user_resp.data) > 0 else f"User ID: {transfer.get('current_user_id')}"
-            
-            # Criar objeto com nomes incluídos
-            transfer_data = {
-                **transfer,
-                'tool_name': tool_name,
-                'from_user_name': from_user_name,
-                'name': tool_name  # Para compatibilidade com frontend
-            }
-            pending_transfers.append(transfer_data)
-        except Exception as e:
-            # Em caso de erro, usar IDs como fallback
-            transfer_data = {
-                **transfer,
-                'tool_name': f"Tool ID: {transfer.get('tool_id')}",
-                'from_user_name': f"User ID: {transfer.get('current_user_id')}",
-                'name': f"Tool ID: {transfer.get('tool_id')}"
-            }
-            pending_transfers.append(transfer_data)
+        # Buscar nome da ferramenta
+        tool_name = "Nome não encontrado"
+        tool_id = transfer.get('tool_id')
+        if tool_id:
+            try:
+                tool_resp = supabase.table("tool").select("name").eq("id", tool_id).execute()
+                if tool_resp.data and len(tool_resp.data) > 0 and tool_resp.data[0].get('name'):
+                    tool_name = tool_resp.data[0]['name']
+                else:
+                    print(f"Ferramenta não encontrada para ID: {tool_id}")
+            except Exception as e:
+                print(f"Erro ao buscar ferramenta {tool_id}: {e}")
+        
+        # Buscar nome do usuário atual (quem está transferindo)
+        from_user_name = "Usuário não encontrado"
+        current_user_id = transfer.get('current_user_id')
+        if current_user_id:
+            try:
+                user_resp = supabase.table("users").select("username").eq("id", current_user_id).execute()
+                if user_resp.data and len(user_resp.data) > 0 and user_resp.data[0].get('username'):
+                    from_user_name = user_resp.data[0]['username']
+                else:
+                    print(f"Usuário não encontrado para ID: {current_user_id}")
+            except Exception as e:
+                print(f"Erro ao buscar usuário {current_user_id}: {e}")
+        
+        # Criar objeto com nomes incluídos
+        transfer_data = {
+            **transfer,
+            'tool_name': tool_name,
+            'from_user_name': from_user_name,
+            'name': tool_name  # Para compatibilidade com frontend
+        }
+        pending_transfers.append(transfer_data)
     
     return jsonify({
         'pending_transfers': pending_transfers
     }), 200
+
+# Manual edit to trigger GitHub Desktop detection
