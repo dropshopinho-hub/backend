@@ -186,4 +186,98 @@ def get_tool_instances():
                 })
     
     return jsonify({'tools': available_instances}), 200
-# Adicione outros endpoints conforme necessário
+
+@tools_bp.route('/<int:tool_id>', methods=['PUT'])
+@jwt_required()
+def update_tool(tool_id):
+    admin_check = require_admin()
+    if admin_check:
+        return admin_check
+
+    data = request.get_json()
+    if not data or not data.get('quantity'):
+        return jsonify({'error': 'Quantidade é obrigatória'}), 400
+
+    new_quantity = int(data['quantity'])
+    
+    try:
+        # Busca a ferramenta
+        tool_response = supabase.table("tool").select("*").eq("id", tool_id).execute()
+        if not tool_response.data:
+            return jsonify({'error': 'Ferramenta não encontrada'}), 404
+        
+        tool = tool_response.data[0]
+        
+        # Busca instâncias atuais
+        instances_response = supabase.table("tool_instance").select("*").eq("tool_id", tool_id).execute()
+        current_instances = instances_response.data if instances_response.data else []
+        current_quantity = len(current_instances)
+        
+        # Verifica se há instâncias emprestadas
+        borrowed_instances = [i for i in current_instances if i['status'] != 'Disponível']
+        if new_quantity < len(borrowed_instances):
+            return jsonify({'error': f'Não é possível reduzir para {new_quantity}. Há {len(borrowed_instances)} unidade(s) emprestada(s)'}), 400
+        
+        # Atualiza a ferramenta principal
+        supabase.table("tool").update({
+            "quantity": new_quantity,
+            "total_quantity": new_quantity
+        }).eq("id", tool_id).execute()
+        
+        if new_quantity > current_quantity:
+            # Adiciona novas instâncias
+            for _ in range(new_quantity - current_quantity):
+                supabase.table("tool_instance").insert({
+                    "tool_id": tool_id,
+                    "status": "Disponível",
+                    "quantity": 1
+                }).execute()
+        
+        elif new_quantity < current_quantity:
+            # Remove instâncias disponíveis (apenas as disponíveis)
+            available_instances = [i for i in current_instances if i['status'] == 'Disponível']
+            instances_to_remove = current_quantity - new_quantity
+            
+            for i in range(min(instances_to_remove, len(available_instances))):
+                supabase.table("tool_instance").delete().eq("id", available_instances[i]['id']).execute()
+        
+        return jsonify({'message': 'Ferramenta atualizada com sucesso'}), 200
+        
+    except Exception as e:
+        print(f"Error updating tool: {e}")
+        return jsonify({'error': 'Erro interno do servidor'}), 500
+
+@tools_bp.route('/<int:tool_id>', methods=['DELETE'])
+@jwt_required()
+def delete_tool(tool_id):
+    admin_check = require_admin()
+    if admin_check:
+        return admin_check
+    
+    try:
+        # Busca a ferramenta
+        tool_response = supabase.table("tool").select("*").eq("id", tool_id).execute()
+        if not tool_response.data:
+            return jsonify({'error': 'Ferramenta não encontrada'}), 404
+        
+        # Busca instâncias
+        instances_response = supabase.table("tool_instance").select("*").eq("tool_id", tool_id).execute()
+        instances = instances_response.data if instances_response.data else []
+        
+        # Verifica se há instâncias emprestadas
+        borrowed_instances = [i for i in instances if i['status'] != 'Disponível']
+        if borrowed_instances:
+            return jsonify({'error': f'Não é possível excluir. Há {len(borrowed_instances)} unidade(s) emprestada(s)'}), 400
+        
+        # Remove todas as instâncias
+        for instance in instances:
+            supabase.table("tool_instance").delete().eq("id", instance['id']).execute()
+        
+        # Remove a ferramenta
+        supabase.table("tool").delete().eq("id", tool_id).execute()
+        
+        return jsonify({'message': 'Ferramenta excluída com sucesso'}), 200
+        
+    except Exception as e:
+        print(f"Error deleting tool: {e}")
+        return jsonify({'error': 'Erro interno do servidor'}), 500
