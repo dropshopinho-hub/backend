@@ -18,10 +18,11 @@ app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'sta
 app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 app.config['JWT_SECRET_KEY'] = 'jwt-secret-string'
 
-# CORS configurado para seu frontend Vercel - Sistema de aprovação implementado
-CORS(app, origins=["https://frontend-nu-six-67.vercel.app", "https://*.vercel.app", "http://localhost:3000"], 
+# CORS configurado para seu frontend Vercel com Supabase
+CORS(app, origins=["https://frontend-nu-six-67.vercel.app", "https://*.vercel.app", "http://localhost:3000", "http://localhost:5173"], 
      allow_headers=["Content-Type", "Authorization"],
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     supports_credentials=True)
 
 jwt = JWTManager(app)
 
